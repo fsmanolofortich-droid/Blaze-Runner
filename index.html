@@ -3,9 +3,108 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FIRE MINI GAMES</title>
+<title>🔥 FIRE MINI GAMES</title>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial, sans-serif;
+  background:#0a0a0a;
+  color:#fff;
+  text-align:center;
+}
+
+h1{
+  margin:20px;
+  color:#ff4500;
+}
+
+#games{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:15px;
+  padding:20px;
+}
+
+.card{
+  background:#1a1a1a;
+  border:1px solid #ff4500;
+  padding:20px;
+  cursor:pointer;
+  transition:0.2s;
+  border-radius:10px;
+}
+
+.card:hover{
+  transform:scale(1.05);
+  background:#ff450020;
+}
+
+.loading{
+  color:#aaa;
+}
+</style>
 </head>
+
 <body>
-TEST
+
+<h1>🔥 FIRE MINI GAMES</h1>
+<div id="games" class="loading">Loading games...</div>
+
+<script>
+const repoOwner = "fsmanolofortich-droid";
+const repoName = "MFFS-BFP_MINI-GAMES";
+const branch = "main";
+
+// GitHub API URL
+const apiURL = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/`;
+
+const container = document.getElementById("games");
+
+async function loadGames(){
+  try{
+    const res = await fetch(apiURL);
+    const data = await res.json();
+
+    container.innerHTML = "";
+
+    data.forEach(item => {
+
+      // ONLY show folders or HTML files
+      if(item.type === "dir" || item.name.endsWith(".html")){
+
+        const gameName = item.name.replace(".html","");
+
+        // GitHub Pages link (important)
+        const gameURL = `https://${repoOwner}.github.io/${repoName}/${item.name}`;
+
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <h3>${gameName}</h3>
+          <p>Click to Play</p>
+        `;
+
+        card.onclick = () => {
+          window.open(gameURL, "_blank");
+        };
+
+        container.appendChild(card);
+      }
+    });
+
+    if(container.innerHTML === ""){
+      container.innerHTML = "<p>No games found.</p>";
+    }
+
+  }catch(err){
+    container.innerHTML = "<p>⚠ Failed to load games</p>";
+    console.error(err);
+  }
+}
+
+loadGames();
+</script>
+
 </body>
 </html>
