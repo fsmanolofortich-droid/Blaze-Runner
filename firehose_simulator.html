@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FireHose Pro — Training Simulator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap');
+
+  :root {
+    --fire-orange: #FF4500;
+    --fire-red: #CC1100;
+    --fire-yellow: #FFD700;
+    --water-blue: #00BFFF;
+    --water-dark: #0077AA;
+    --smoke-gray: #888;
+    --hud-green: #00FF88;
+    --hud-bg: rgba(0,0,0,0.75);
+    --panel-border: rgba(255,100,0,0.4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    font-family: 'Rajdhani', sans-serif;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    cursor: crosshair;
+  }
+
+  #gameCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* HUD */
+  #hud {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .hud-panel {
+    position: absolute;
+    background: var(--hud-bg);
+    border: 1px solid var(--panel-border);
+    padding: 10px 16px;
+    backdrop-filter: blur(6px);
+  }
+
+  #top-bar {
+    top: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 40px; align-items: center;
+    border-radius: 4px;
+  }
+
+  .stat-block { text-align: center; }
+  .stat-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #FF6600;
+    text-transform: uppercase;
+  }
+  .stat-value {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    color: var(--hud-green);
+    line-height: 1;
+  }
+  .stat-value.warn { color: #FF4500; animation: blink 0.5s infinite; }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  #bottom-left {
+    bottom: 20px; left: 20px;
+    border-radius: 4px;
+    min-width: 220px;
+    pointer-events: all;
+  }
+
+  #bottom-right {
+    bottom: 20px; right: 20px;
+    border-radius: 4px;
+    text-align: right;
+    min-width: 200px;
+  }
+
+  .controls-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    color: #FF6600;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 4px;
+  }
+
+  .control-row {
+    display: flex; align-items: center; gap: 8px;
+    margin: 5px 0;
+  }
+
+  .key-badge {
+    background: #222;
+    border: 1px solid #555;
+    border-radius: 3px;
+    padding: 2px 6px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: #ccc;
+    min-width: 28px;
+    text-align: center;
+  }
+
+  .control-desc {
+    font-size: 13px;
+    color: #aaa;
+  }
+
+  /* Pressure bar */
+  #pressure-bar-wrap {
+    position: absolute;
+    bottom: 20px; left: 50%; transform: translateX(-50%);
+    width: 300px;
+  }
+  #pressure-bar-wrap .hud-panel { width: 100%; border-radius: 4px; }
+  .bar-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #FF6600;
+    margin-bottom: 6px;
+  }
+  .bar-track {
+    height: 12px;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+  }
+  .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--water-dark), var(--water-blue));
+    transition: width 0.1s;
+    border-radius: 2px;
+  }
+  .bar-fill.overload {
+    background: linear-gradient(90deg, #FF4500, #FFD700);
+    animation: pulse-bar 0.3s infinite alternate;
+  }
+  @keyframes pulse-bar { from{opacity:1} to{opacity:0.6} }
+
+  /* Water meter */
+  #water-meter {
+    position: absolute;
+    top: 80px; right: 20px;
+    width: 40px;
+    border-radius: 4px;
+    padding: 8px;
+  }
+  .vert-bar-track {
+    width: 20px; height: 140px;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 0 auto 6px;
+    position: relative;
+    display: flex; align-items: flex-end;
+  }
+  .vert-bar-fill {
+    width: 100%;
+    background: linear-gradient(0deg, var(--water-dark), var(--water-blue));
+    transition: height 0.2s;
+    border-radius: 1px;
+  }
+  .vert-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: #FF6600;
+    text-align: center;
+    writing-mode: horizontal-tb;
+  }
+
+  /* Score / mission panel */
+  #mission-panel {
+    position: absolute;
+    top: 80px; left: 20px;
+    border-radius: 4px;
+    min-width: 180px;
+  }
+  .mission-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    color: #FF6600;
+    letter-spacing: 2px;
+  }
+  .objective {
+    display: flex; align-items: center; gap: 6px;
+    margin: 6px 0;
+    font-size: 13px;
+    color: #aaa;
+  }
+  .obj-icon { font-size: 14px; }
+  .obj-done { color: var(--hud-green); }
+  .obj-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #555;
+    transition: background 0.3s;
+  }
+  .obj-dot.active { background: var(--fire-orange); animation: blink 0.8s infinite; }
+  .obj-dot.done { background: var(--hud-green); animation: none; }
+
+  /* Splash / overlay screens */
+  #splash {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, #1a0800 0%, #000 70%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100;
+    cursor: pointer;
+  }
+  .splash-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(48px, 10vw, 96px);
+    color: #FF4500;
+    letter-spacing: 6px;
+    text-shadow: 0 0 40px #FF4500, 0 0 80px #FF220080;
+    animation: flicker 3s infinite;
+  }
+  @keyframes flicker {
+    0%,100%{text-shadow:0 0 40px #FF4500,0 0 80px #FF220080}
+    50%{text-shadow:0 0 20px #FF6600,0 0 40px #FF440060}
+    75%{text-shadow:0 0 60px #FF4500,0 0 120px #FF220090}
+  }
+  .splash-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    color: #FF6600;
+    letter-spacing: 4px;
+    margin-top: 8px;
+  }
+  .splash-instruction {
+    margin-top: 48px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 20px;
+    color: #ccc;
+    animation: pulse-text 1.5s infinite;
+  }
+  @keyframes pulse-text { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .splash-tips {
+    margin-top: 32px;
+    max-width: 480px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .tip-card {
+    background: rgba(255,69,0,0.1);
+    border: 1px solid rgba(255,69,0,0.3);
+    border-radius: 4px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #bbb;
+  }
+  .tip-card strong { color: #FF6600; }
+
+  #game-over {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  #game-over.show { display: flex; }
+
+  .go-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 72px;
+    letter-spacing: 4px;
+    margin-bottom: 16px;
+  }
+  .go-score {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 18px;
+    color: var(--hud-green);
+    margin-bottom: 32px;
+  }
+
+  #restart-btn {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 3px;
+    background: #FF4500;
+    color: #fff;
+    border: none;
+    padding: 14px 40px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+  }
+  #restart-btn:hover { background: #FF6600; transform: scale(1.05); }
+
+  /* Tutorial tooltip */
+  #tooltip {
+    position: fixed;
+    bottom: 120px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.85);
+    border: 1px solid #FF6600;
+    border-radius: 4px;
+    padding: 10px 20px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: #FFD700;
+    letter-spacing: 1px;
+    z-index: 20;
+    pointer-events: none;
+    transition: opacity 0.5s;
+    text-align: center;
+  }
+  #tooltip.hidden { opacity: 0; }
+
+  #crosshair {
+    position: fixed;
+    pointer-events: none;
+    z-index: 15;
+    transform: translate(-50%, -50%);
+    width: 24px; height: 24px;
+  }
+  #crosshair::before, #crosshair::after {
+    content: '';
+    position: absolute;
+    background: rgba(0,200,255,0.8);
+  }
+  #crosshair::before { width: 2px; height: 100%; left: 50%; top: 0; transform: translateX(-50%); }
+  #crosshair::after { height: 2px; width: 100%; top: 50%; left: 0; transform: translateY(-50%); }
+</style>
+</head>
+<body>
+
+<!-- Crosshair -->
+<div id="crosshair"></div>
+
+<!-- Splash screen -->
+<div id="splash">
+  <div class="splash-title">🔥 FIREHOSE PRO</div>
+  <div class="splash-sub">FIREFIGHTER TRAINING SIMULATOR</div>
+  <div class="splash-tips">
+    <div class="tip-card"><strong>MOVE MOUSE</strong> — Aim hose</div>
+    <div class="tip-card"><strong>HOLD SPACE / CLICK</strong> — Spray water</div>
+    <div class="tip-card"><strong>SCROLL</strong> — Adjust pressure</div>
+    <div class="tip-card"><strong>W / S</strong> — Step forward/back</div>
+  </div>
+  <div class="splash-instruction">— CLICK TO START MISSION —</div>
+</div>
+
+<!-- Game Over -->
+<div id="game-over">
+  <div class="go-title" id="go-title">MISSION FAILED</div>
+  <div class="go-score" id="go-score"></div>
+  <button id="restart-btn" onclick="restartGame()">RESTART MISSION</button>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="top-bar" class="hud-panel">
+    <div class="stat-block">
+      <div class="stat-label">Score</div>
+      <div class="stat-value" id="score-val">0</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-label">Time</div>
+      <div class="stat-value" id="timer-val">90</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-label">Fires Left</div>
+      <div class="stat-value" id="fires-val">0</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-label">Accuracy</div>
+      <div class="stat-value" id="acc-val">--%</div>
+    </div>
+  </div>
+
+  <div id="mission-panel" class="hud-panel">
+    <div class="mission-title">Objectives</div>
+    <div class="objective" id="obj1">
+      <div class="obj-dot active" id="obj1-dot"></div>
+      <span id="obj1-text">Extinguish all fires</span>
+    </div>
+    <div class="objective" id="obj2">
+      <div class="obj-dot" id="obj2-dot"></div>
+      <span id="obj2-text">Score 500+ pts</span>
+    </div>
+    <div class="objective" id="obj3">
+      <div class="obj-dot" id="obj3-dot"></div>
+      <span id="obj3-text">70%+ accuracy</span>
+    </div>
+  </div>
+
+  <div id="water-meter" class="hud-panel">
+    <div class="vert-bar-track"><div class="vert-bar-fill" id="water-fill" style="height:100%"></div></div>
+    <div class="vert-label">WATER</div>
+  </div>
+
+  <div id="pressure-bar-wrap">
+    <div class="hud-panel">
+      <div class="bar-label">PRESSURE</div>
+      <div class="bar-track"><div class="bar-fill" id="pressure-fill" style="width:50%"></div></div>
+    </div>
+  </div>
+
+  <div id="bottom-left" class="hud-panel">
+    <div class="controls-title">Controls</div>
+    <div class="control-row"><span class="key-badge">MOUSE</span><span class="control-desc">Aim hose</span></div>
+    <div class="control-row"><span class="key-badge">SPACE</span><span class="control-desc">Spray water</span></div>
+    <div class="control-row"><span class="key-badge">SCROLL</span><span class="control-desc">Adjust pressure</span></div>
+    <div class="control-row"><span class="key-badge">W/S</span><span class="control-desc">Move closer/farther</span></div>
+    <div class="control-row"><span class="key-badge">R</span><span class="control-desc">Refill water tank</span></div>
+  </div>
+
+  <div id="bottom-right" class="hud-panel">
+    <div class="controls-title">Tips</div>
+    <div style="font-size:12px;color:#aaa;line-height:1.7">
+      Higher pressure = more range<br>
+      Aim at base of fire<br>
+      Don't over-spray (wastes water)<br>
+      Move closer for accuracy
+    </div>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div id="tooltip">Hold SPACE to spray!</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const crosshair = document.getElementById('crosshair');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ==================== GAME STATE ====================
+let gameRunning = false;
+let score = 0;
+let timeLeft = 90;
+let waterAmount = 100;
+let pressure = 0.5;
+let isSpraying = false;
+let totalShots = 0, hits = 0;
+let mx = W/2, my = H/2;
+let playerZ = 0; // 0=normal, positive=closer
+let timerInterval = null;
+
+// Fire objects
+let fires = [];
+// Particle arrays
+let waterParticles = [];
+let smokeParticles = [];
+let steamParticles = [];
+let embers = [];
+let debris = [];
+
+// Tooltips
+const tooltips = [
+  "Hold SPACE or CLICK to spray water!",
+  "Aim at the BASE of the fire for best results!",
+  "SCROLL to increase pressure for longer range!",
+  "Press W to step closer, S to step back!",
+  "Press R to refill your water tank (costs 5s)!",
+  "High pressure water extinguishes fire faster!"
+];
+let tooltipIndex = 0;
+let tooltipTimer = 0;
+
+// ==================== SCENE / BUILDING ====================
+const SCENE = {
+  // Ground
+  groundY: 0.72, // fraction of H
+  // Building structure
+  building: {
+    x: 0.15, y: 0.08, w: 0.7, h: 0.65,
+    floors: 3, windows: 5
+  },
+  vanishX: 0.5,
+  vanishY: 0.35
+};
+
+// Fire spawn positions (relative)
+const FIRE_SPAWNS = [
+  {x:0.22, y:0.61, size:1.2, floor:0},
+  {x:0.38, y:0.61, size:0.9, floor:0},
+  {x:0.54, y:0.61, size:1.0, floor:0},
+  {x:0.70, y:0.61, size:0.8, floor:0},
+  {x:0.28, y:0.40, size:0.8, floor:1},
+  {x:0.50, y:0.40, size:1.1, floor:1},
+  {x:0.65, y:0.40, size:0.7, floor:1},
+  {x:0.35, y:0.22, size:0.9, floor:2},
+  {x:0.58, y:0.22, size:1.0, floor:2},
+];
+
+class Fire {
+  constructor(spawn) {
+    this.x = spawn.x * W;
+    this.y = spawn.y * H;
+    this.baseX = spawn.x;
+    this.baseY = spawn.y;
+    this.size = spawn.size;
+    this.intensity = 1.0; // 0=out, 1=full
+    this.alive = true;
+    this.age = Math.random() * 100;
+    this.hitCooldown = 0;
+    this.smokeTimer = 0;
+    this.emberTimer = 0;
+    this.flicker = Math.random() * Math.PI * 2;
+  }
+
+  update(dt) {
+    this.age += dt * 60;
+    this.flicker += dt * 8;
+    this.hitCooldown -= dt;
+    this.smokeTimer -= dt;
+    this.emberTimer -= dt;
+
+    // Reignite slowly
+    if (this.intensity < 1.0 && this.intensity > 0) {
+      this.intensity = Math.min(1.0, this.intensity + dt * 0.03);
+    }
+
+    // Spawn smoke
+    if (this.smokeTimer <= 0 && this.intensity > 0.1) {
+      this.smokeTimer = 0.08 / this.intensity;
+      const r = this.getRadius();
+      smokeParticles.push({
+        x: this.x + (Math.random()-0.5)*r,
+        y: this.y - r * 0.5,
+        vx: (Math.random()-0.5)*0.4,
+        vy: -Math.random()*1.2 - 0.5,
+        life: 1, maxLife: 2+Math.random()*2,
+        size: r * (0.5 + Math.random()*0.5),
+        alpha: 0.3 * this.intensity
+      });
+    }
+
+    // Spawn embers
+    if (this.emberTimer <= 0 && this.intensity > 0.3) {
+      this.emberTimer = 0.15;
+      const r = this.getRadius();
+      embers.push({
+        x: this.x + (Math.random()-0.5)*r*0.5,
+        y: this.y,
+        vx: (Math.random()-0.5)*3,
+        vy: -Math.random()*5 - 2,
+        life: 1, maxLife: 0.5+Math.random()*0.8,
+        size: 2+Math.random()*3
+      });
+    }
+
+    this.x = this.baseX * W;
+    this.y = this.baseY * H;
+  }
+
+  getRadius() { return 30 * this.size * (0.9 + 0.1*Math.sin(this.flicker)); }
+
+  isHit(px, py) {
+    const r = this.getRadius() * 1.4;
+    return Math.hypot(px - this.x, py - this.y) < r;
+  }
+
+  extinguish(power) {
+    this.intensity -= power;
+    if (this.intensity <= 0) {
+      this.intensity = 0;
+      this.alive = false;
+      // Spawn steam burst
+      for (let i=0; i<20; i++) {
+        steamParticles.push({
+          x: this.x + (Math.random()-0.5)*40,
+          y: this.y,
+          vx: (Math.random()-0.5)*4,
+          vy: -Math.random()*4 - 1,
+          life: 1, maxLife: 1+Math.random(),
+          size: 20+Math.random()*30,
+          alpha: 0.6
+        });
+      }
+      score += Math.round(100 * this.size);
+      return true;
+    }
+    return false;
+  }
+
+  draw() {
+    if (!this.alive) return;
+    const r = this.getRadius();
+    const cx = this.x, cy = this.y;
+    const f = this.flicker;
+    const intens = this.intensity;
+
+    // Glow
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, r*2.5);
+    glow.addColorStop(0, `rgba(255,160,0,${0.25*intens})`);
+    glow.addColorStop(1, 'rgba(255,60,0,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(cx, cy, r*2.5, 0, Math.PI*2); ctx.fill();
+
+    // Core flames — multiple teardrop shapes
+    const layers = [
+      {color:`rgba(255,255,180,${0.9*intens})`, h:r*1.6, w:r*0.4, ox:0},
+      {color:`rgba(255,200,0,${0.85*intens})`, h:r*1.3, w:r*0.55, ox:Math.sin(f)*r*0.15},
+      {color:`rgba(255,100,0,${0.8*intens})`, h:r*1.1, w:r*0.7, ox:Math.sin(f+1)*r*0.1},
+      {color:`rgba(200,30,0,${0.7*intens})`, h:r*0.7, w:r*0.9, ox:0},
+    ];
+
+    for (const l of layers) {
+      ctx.save();
+      ctx.translate(cx + l.ox, cy);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(l.w, -l.h*0.4, l.w*0.6, -l.h*0.8, 0, -l.h);
+      ctx.bezierCurveTo(-l.w*0.6, -l.h*0.8, -l.w, -l.h*0.4, 0, 0);
+      ctx.fillStyle = l.color;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Base glow
+    const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    bg.addColorStop(0, `rgba(255,200,50,${0.6*intens})`);
+    bg.addColorStop(1, 'rgba(255,50,0,0)');
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+// ==================== PARTICLES ====================
+function spawnWaterStream(fromX, fromY, toX, toY, pressure) {
+  const count = Math.floor(pressure * 12) + 3;
+  for (let i=0; i<count; i++) {
+    const t = i / count;
+    const spread = (1-pressure)*20;
+    const wx = fromX + (toX-fromX)*t + (Math.random()-0.5)*spread*(1+t*2);
+    const wy = fromY + (toY-fromY)*t + (Math.random()-0.5)*spread*(1+t*2) + t*t*80*(1-pressure);
+    const speed = 2 + pressure * 4;
+    waterParticles.push({
+      x: wx, y: wy,
+      vx: (toX-fromX)*0.01*(Math.random()*0.5+0.75) + (Math.random()-0.5)*0.5,
+      vy: (toY-fromY)*0.01*(Math.random()*0.5+0.75) + (Math.random()-0.5)*0.5,
+      life: 1, maxLife: 0.3+Math.random()*0.4,
+      size: 3+Math.random()*4*pressure,
+      alpha: 0.8,
+      trail: [{x:wx,y:wy}]
+    });
+  }
+  totalShots++;
+}
+
+// ==================== DRAWING ====================
+function drawBackground() {
+  // Sky gradient - night/fire sky
+  const sky = ctx.createLinearGradient(0, 0, 0, H * SCENE.groundY);
+  sky.addColorStop(0, '#050210');
+  sky.addColorStop(0.5, '#150508');
+  sky.addColorStop(1, '#3a1005');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H * SCENE.groundY);
+
+  // Stars
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  for (let i=0; i<60; i++) {
+    const sx = ((i*7919)%1) * W;
+    const sy = ((i*6271)%1) * H * 0.5;
+    const ss = Math.random() < 0.01 ? 1.5 : 0.8;
+    ctx.fillRect(sx, sy, ss, ss);
+  }
+  // Stars deterministic
+  const starSeeds = [0.12,0.35,0.7,0.23,0.88,0.45,0.61,0.09,0.92,0.31,0.56,0.78,0.14,0.67,0.42];
+  const starSeeds2 = [0.23,0.54,0.11,0.77,0.38,0.65,0.82,0.19,0.47,0.93,0.06,0.73,0.28,0.51,0.84];
+  for(let i=0; i<15; i++){
+    ctx.fillRect(starSeeds[i]*W, starSeeds2[i]*H*0.45, 1, 1);
+  }
+
+  // Ground
+  const ground = ctx.createLinearGradient(0, H*SCENE.groundY, 0, H);
+  ground.addColorStop(0, '#1a0c00');
+  ground.addColorStop(1, '#0a0500');
+  ctx.fillStyle = ground;
+  ctx.fillRect(0, H*SCENE.groundY, W, H*(1-SCENE.groundY));
+
+  // Ground details — road lines, asphalt texture
+  ctx.strokeStyle = 'rgba(80,40,0,0.5)';
+  ctx.lineWidth = 2;
+  for (let i=0; i<4; i++) {
+    const y = H*SCENE.groundY + (H*(1-SCENE.groundY))*0.2 + i*20;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  }
+}
+
+function drawBuilding() {
+  const b = SCENE.building;
+  const bx = b.x*W, by = b.y*H, bw = b.w*W, bh = b.h*H;
+
+  // Shadow / depth side
+  ctx.fillStyle = '#1a0800';
+  ctx.fillRect(bx+15, by+15, bw, bh);
+
+  // Main facade
+  const wallGrad = ctx.createLinearGradient(bx, by, bx+bw, by);
+  wallGrad.addColorStop(0, '#2a1a0a');
+  wallGrad.addColorStop(0.3, '#3a2010');
+  wallGrad.addColorStop(0.7, '#2e1808');
+  wallGrad.addColorStop(1, '#1a0c04');
+  ctx.fillStyle = wallGrad;
+  ctx.fillRect(bx, by, bw, bh);
+
+  // Brick texture (horizontal lines)
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  ctx.lineWidth = 1;
+  const brickH = 14;
+  for (let row=0; row<bh/brickH; row++) {
+    ctx.beginPath();
+    ctx.moveTo(bx, by + row*brickH);
+    ctx.lineTo(bx+bw, by + row*brickH);
+    ctx.stroke();
+    // Vertical breaks
+    const offset = (row%2)*30;
+    for (let col=0; col<bw/60+1; col++) {
+      const vx = bx + offset + col*60;
+      ctx.beginPath();
+      ctx.moveTo(vx, by+row*brickH);
+      ctx.lineTo(vx, by+(row+1)*brickH);
+      ctx.stroke();
+    }
+  }
+
+  // Floor dividers
+  const floorH = bh / b.floors;
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+  ctx.lineWidth = 3;
+  for (let f=1; f<b.floors; f++) {
+    const fy = by + f*floorH;
+    ctx.beginPath(); ctx.moveTo(bx,fy); ctx.lineTo(bx+bw,fy); ctx.stroke();
+  }
+
+  // Outline
+  ctx.strokeStyle = '#1a0800';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(bx, by, bw, bh);
+
+  // Windows
+  drawWindows(bx, by, bw, bh, b.floors, b.windows);
+
+  // Roof ledge
+  ctx.fillStyle = '#2a1500';
+  ctx.fillRect(bx-8, by-10, bw+16, 14);
+  ctx.strokeStyle = '#1a0a00';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(bx-8, by-10, bw+16, 14);
+
+  // Chimney
+  ctx.fillStyle = '#251200';
+  ctx.fillRect(bx+bw*0.15, by-40, 30, 32);
+  ctx.fillRect(bx+bw*0.6, by-28, 22, 22);
+}
+
+function drawWindows(bx, by, bw, bh, floors, cols) {
+  const winW = 40, winH = 55;
+  const padX = (bw - cols*winW) / (cols+1);
+  const padY = (bh/floors - winH) / 2;
+
+  for (let f=0; f<floors; f++) {
+    const fy = by + f*(bh/floors) + padY;
+    for (let c=0; c<cols; c++) {
+      const wx = bx + padX + c*(winW+padX);
+
+      // Check if fire nearby
+      const winCx = wx + winW/2, winCy = fy + winH/2;
+      let glow = 0;
+      for (const fire of fires) {
+        if (!fire.alive) continue;
+        const dist = Math.hypot(fire.x - winCx, fire.y - winCy);
+        glow = Math.max(glow, (1 - dist/200) * fire.intensity);
+      }
+      glow = Math.max(0, Math.min(1, glow));
+
+      // Window glass
+      if (glow > 0.1) {
+        const wg = ctx.createLinearGradient(wx, fy, wx+winW, fy+winH);
+        wg.addColorStop(0, `rgba(255,${Math.floor(100+glow*100)},0,${0.4+glow*0.5})`);
+        wg.addColorStop(1, `rgba(200,50,0,${0.3+glow*0.4})`);
+        ctx.fillStyle = wg;
+      } else {
+        ctx.fillStyle = `rgba(10,5,20,0.9)`;
+      }
+      ctx.fillRect(wx, fy, winW, winH);
+
+      // Frame
+      ctx.strokeStyle = '#1a0a00';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(wx, fy, winW, winH);
+
+      // Cross bar
+      ctx.beginPath();
+      ctx.moveTo(wx, fy+winH/2); ctx.lineTo(wx+winW, fy+winH/2);
+      ctx.moveTo(wx+winW/2, fy); ctx.lineTo(wx+winW/2, fy+winH);
+      ctx.stroke();
+
+      // Glow bloom on window
+      if (glow > 0.2) {
+        const grd = ctx.createRadialGradient(wx+winW/2, fy+winH/2, 0, wx+winW/2, fy+winH/2, winH);
+        grd.addColorStop(0, `rgba(255,120,0,${glow*0.3})`);
+        grd.addColorStop(1, 'rgba(255,60,0,0)');
+        ctx.fillStyle = grd;
+        ctx.fillRect(wx-20, fy-20, winW+40, winH+40);
+      }
+    }
+  }
+}
+
+function drawHose() {
+  if (!gameRunning) return;
+
+  // Hose origin (bottom center-ish)
+  const hx = W * 0.48, hy = H * 0.92;
+  const tx = mx, ty = my;
+
+  // Draw hose body (curved line)
+  ctx.save();
+  ctx.strokeStyle = '#c8380a';
+  ctx.lineWidth = 8;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = '#ff5500';
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.moveTo(W*0.3, H);
+  ctx.bezierCurveTo(W*0.35, H*0.9, hx, H*0.85, hx, hy);
+  ctx.stroke();
+
+  // Nozzle
+  const ang = Math.atan2(ty-hy, tx-hx);
+  ctx.save();
+  ctx.translate(hx, hy);
+  ctx.rotate(ang);
+  ctx.fillStyle = '#888';
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-6, -6); ctx.lineTo(30, -5); ctx.lineTo(36, -3);
+  ctx.lineTo(36, 3); ctx.lineTo(30, 5); ctx.lineTo(-6, 6); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // Nozzle tip
+  ctx.fillStyle = '#aaa';
+  ctx.beginPath();
+  ctx.arc(36, 0, 4, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  ctx.restore();
+
+  // Water spray
+  if (isSpraying && waterAmount > 0) {
+    const nozzleX = hx + Math.cos(ang)*36;
+    const nozzleY = hy + Math.sin(ang)*36;
+    drawWaterSpray(nozzleX, nozzleY, tx, ty);
+  }
+}
+
+function drawWaterSpray(nx, ny, tx, ty) {
+  const p = pressure;
+  const dist = Math.hypot(tx-nx, ty-ny);
+
+  // Main water beam
+  const steps = 20;
+  for (let s=0; s<3; s++) {
+    ctx.save();
+    ctx.strokeStyle = `rgba(100,200,255,${0.4+s*0.1})`;
+    ctx.lineWidth = p*8 - s*2;
+    ctx.lineCap = 'round';
+    ctx.shadowColor = '#00BFFF';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    const spread = (1-p)*30*(s+1)*0.3;
+    ctx.moveTo(nx, ny);
+    for (let i=1; i<=steps; i++) {
+      const t = i/steps;
+      const grav = t*t*dist*0.3*(1-p);
+      const wobble = Math.sin(Date.now()*0.01+t*5+s*2) * spread*t;
+      ctx.lineTo(
+        nx + (tx-nx)*t + wobble,
+        ny + (ty-ny)*t + grav + wobble*0.3
+      );
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Splash at end
+  const splashX = tx + (Math.random()-0.5)*15;
+  const splashY = ty + (Math.random()-0.5)*15;
+  ctx.fillStyle = `rgba(150,220,255,${0.5*p})`;
+  ctx.beginPath();
+  ctx.arc(splashX, splashY, 8*p, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function drawParticles() {
+  // Smoke
+  for (const p of smokeParticles) {
+    const a = (p.life/p.maxLife)*p.alpha;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = `rgb(${80+Math.floor((1-p.life/p.maxLife)*40)},${70+Math.floor((1-p.life/p.maxLife)*30)},${70+Math.floor((1-p.life/p.maxLife)*30)})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size*(1+0.5*(1-p.life/p.maxLife)), 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Steam
+  for (const p of steamParticles) {
+    const a = (p.life/p.maxLife)*p.alpha;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = `rgba(200,230,255,1)`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size*(0.5+(1-p.life/p.maxLife)*0.5), 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Embers
+  for (const p of embers) {
+    const a = p.life/p.maxLife;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = `rgb(255,${Math.floor(100+a*120)},0)`;
+    ctx.shadowColor = '#FF4500';
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size*a, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Water drops
+  for (const p of waterParticles) {
+    ctx.save();
+    ctx.globalAlpha = p.alpha * p.life/p.maxLife;
+    ctx.fillStyle = '#80D8FF';
+    ctx.shadowColor = '#00BFFF';
+    ctx.shadowBlur = 3;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawFirefighter() {
+  const cx = W * 0.5;
+  const cy = H * 0.92;
+  const scale = 0.9 + playerZ * 0.1;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(0, 10, 30, 8, 0, 0, Math.PI*2); ctx.fill();
+
+  // Legs
+  ctx.fillStyle = '#1a2a1a';
+  ctx.fillRect(-18, -40, 14, 40);
+  ctx.fillRect(4, -40, 14, 40);
+
+  // Boots
+  ctx.fillStyle = '#111';
+  ctx.fillRect(-20, -8, 16, 10);
+  ctx.fillRect(4, -8, 16, 10);
+
+  // Jacket (yellow stripe)
+  ctx.fillStyle = '#cc5500';
+  ctx.fillRect(-22, -85, 44, 46);
+  ctx.fillStyle = '#ffcc00';
+  ctx.fillRect(-22, -65, 44, 8);
+  ctx.fillRect(-22, -52, 44, 6);
+
+  // Gloves
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.arc(-28, -70, 8, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(28, -70, 8, 0, Math.PI*2); ctx.fill();
+
+  // Helmet
+  ctx.fillStyle = '#ffcc00';
+  ctx.beginPath();
+  ctx.ellipse(0, -105, 26, 18, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.fillStyle = '#cc9900';
+  ctx.fillRect(-28, -92, 56, 8);
+
+  // Face visor
+  ctx.fillStyle = 'rgba(0,180,255,0.3)';
+  ctx.beginPath(); ctx.ellipse(0, -97, 18, 12, 0, Math.PI*0.8, Math.PI*0.2); ctx.fill();
+
+  ctx.restore();
+}
+
+// ==================== UPDATE ====================
+function updateParticles(dt) {
+  function update(arr) {
+    for (let i=arr.length-1; i>=0; i--) {
+      const p = arr[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.05; // gravity
+      p.life -= dt;
+      if (p.life <= 0) arr.splice(i,1);
+    }
+  }
+  update(smokeParticles);
+  update(steamParticles);
+  update(embers);
+  update(waterParticles);
+}
+
+function checkWaterHits() {
+  if (!isSpraying || waterAmount <= 0) return;
+
+  const hx = W * 0.48, hy = H * 0.92;
+  const ang = Math.atan2(my - hy, mx - hx);
+  const dist = Math.hypot(mx-hx, my-hy);
+
+  // Effective range based on pressure
+  const maxRange = 200 + pressure * 500;
+  if (dist > maxRange) return;
+
+  // Spawn water particles
+  spawnWaterStream(hx, hy, mx, my, pressure);
+
+  // Drain water
+  waterAmount -= dt * 8 * pressure;
+  waterAmount = Math.max(0, waterAmount);
+
+  // Hit detection
+  for (const fire of fires) {
+    if (!fire.alive || fire.hitCooldown > 0) continue;
+    if (fire.isHit(mx, my)) {
+      const power = pressure * dt * 2.5;
+      fire.extinguish(power);
+      hits++;
+      fire.hitCooldown = 0.05;
+    }
+  }
+}
+
+let lastTime = 0;
+let dt = 0;
+
+function gameLoop(ts) {
+  dt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+
+  if (!gameRunning) { requestAnimationFrame(gameLoop); return; }
+
+  // Update fires
+  for (const fire of fires) fire.update(dt);
+  updateParticles(dt);
+  if (isSpraying) checkWaterHits();
+
+  // Tooltip
+  tooltipTimer -= dt;
+  if (tooltipTimer <= 0) {
+    tooltipTimer = 8;
+    tooltipIndex = (tooltipIndex+1) % tooltips.length;
+    const tip = document.getElementById('tooltip');
+    tip.textContent = tooltips[tooltipIndex];
+    tip.classList.remove('hidden');
+    setTimeout(()=>tip.classList.add('hidden'), 4000);
+  }
+
+  // Pressure rebound
+  if (!isSpraying) {
+    // pressure stays as set
+  }
+
+  // Draw
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+  drawBuilding();
+  drawParticles();
+  for (const fire of fires) fire.draw();
+  drawFirefighter();
+  drawHose();
+
+  // Update HUD
+  updateHUD();
+
+  // Check win condition
+  const aliveFires = fires.filter(f=>f.alive).length;
+  if (aliveFires === 0 && fires.length > 0) {
+    endGame(true);
+    return;
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+function updateHUD() {
+  document.getElementById('score-val').textContent = score;
+  document.getElementById('fires-val').textContent = fires.filter(f=>f.alive).length;
+  const acc = totalShots > 0 ? Math.round(hits/totalShots*100) : 0;
+  document.getElementById('acc-val').textContent = acc + '%';
+
+  const wf = document.getElementById('water-fill');
+  wf.style.height = waterAmount + '%';
+  if (waterAmount < 20) wf.style.background = 'linear-gradient(0deg,#FF4500,#FF8800)';
+  else wf.style.background = '';
+
+  const pf = document.getElementById('pressure-fill');
+  pf.style.width = (pressure * 100) + '%';
+  if (pressure > 0.85) pf.classList.add('overload');
+  else pf.classList.remove('overload');
+
+  // Objectives
+  const allOut = fires.filter(f=>f.alive).length === 0 && fires.length > 0;
+  setObj('obj1', allOut);
+  setObj('obj2', score >= 500);
+  setObj('obj3', totalShots > 5 && (hits/totalShots) >= 0.7);
+}
+
+function setObj(id, done) {
+  const dot = document.getElementById(id+'-dot');
+  if (done) { dot.classList.remove('active'); dot.classList.add('done'); }
+  else { dot.classList.add('active'); dot.classList.remove('done'); }
+}
+
+// ==================== GAME FLOW ====================
+function startGame() {
+  document.getElementById('splash').style.display = 'none';
+  score = 0; timeLeft = 90; waterAmount = 100; pressure = 0.5;
+  isSpraying = false; totalShots = 0; hits = 0; playerZ = 0;
+  waterParticles=[]; smokeParticles=[]; steamParticles=[]; embers=[];
+
+  fires = FIRE_SPAWNS.map(s => new Fire(s));
+
+  gameRunning = true;
+
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    document.getElementById('timer-val').textContent = timeLeft;
+    if (timeLeft <= 10) document.getElementById('timer-val').classList.add('warn');
+    if (timeLeft <= 0) endGame(false);
+  }, 1000);
+
+  tooltipIndex = -1; tooltipTimer = 2;
+  document.getElementById('tooltip').classList.remove('hidden');
+  document.getElementById('tooltip').textContent = tooltips[0];
+  setTimeout(()=>document.getElementById('tooltip').classList.add('hidden'), 4000);
+}
+
+function restartGame() {
+  document.getElementById('game-over').classList.remove('show');
+  startGame();
+}
+
+function endGame(won) {
+  gameRunning = false;
+  clearInterval(timerInterval);
+
+  const acc = totalShots > 0 ? Math.round(hits/totalShots*100) : 0;
+  const go = document.getElementById('game-over');
+  document.getElementById('go-title').textContent = won ? '🏆 MISSION COMPLETE' : '💀 MISSION FAILED';
+  document.getElementById('go-title').style.color = won ? '#00FF88' : '#FF4500';
+  document.getElementById('go-score').textContent =
+    `SCORE: ${score}  |  ACCURACY: ${acc}%  |  TIME: ${90-timeLeft}s`;
+  go.classList.add('show');
+}
+
+// ==================== INPUT ====================
+window.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  crosshair.style.left = mx + 'px';
+  crosshair.style.top = my + 'px';
+});
+
+window.addEventListener('mousedown', e => { if (e.button===0) isSpraying = true; });
+window.addEventListener('mouseup', e => { if (e.button===0) isSpraying = false; });
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); isSpraying = true; }
+  if (e.code === 'KeyW') playerZ = Math.min(1, playerZ + 0.2);
+  if (e.code === 'KeyS') playerZ = Math.max(0, playerZ - 0.2);
+  if (e.code === 'KeyR') {
+    if (gameRunning) {
+      waterAmount = 100;
+      timeLeft = Math.max(0, timeLeft - 5);
+      document.getElementById('timer-val').textContent = timeLeft;
+      const tip = document.getElementById('tooltip');
+      tip.textContent = '💧 Tank refilled! (-5s)';
+      tip.classList.remove('hidden');
+      setTimeout(()=>tip.classList.add('hidden'), 2000);
+    }
+  }
+});
+
+window.addEventListener('keyup', e => {
+  if (e.code === 'Space') isSpraying = false;
+});
+
+window.addEventListener('wheel', e => {
+  pressure = Math.max(0.1, Math.min(1.0, pressure - e.deltaY * 0.001));
+});
+
+// Splash click
+document.getElementById('splash').addEventListener('click', startGame);
+
+// Start render loop
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
